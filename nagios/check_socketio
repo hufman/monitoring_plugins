@@ -1,0 +1,71 @@
+#!/bin/bash
+ssl=0
+host=
+ip=
+port=
+suburl=
+
+usage()
+{
+cat <<EOF
+usage: $0 options
+OPTIONS:
+  -H    hostname
+  -I    ip address
+  -S    ssl
+  -p    port
+  -u    socket.io url
+EOF
+}
+
+while getopts "SH:I:p:u:" OPTION
+do
+  case $OPTION in
+    h)
+      usage
+      exit -1
+      ;;
+    S)
+      ssl=1
+      ;;
+    H)
+      host="$OPTARG"
+      ;;
+    I)
+      ip="$OPTARG"
+      ;;
+    p)
+      port="$OPTARG"
+      ;;
+    u)
+      suburl="$OPTARG"
+      ;;
+  esac
+done
+
+[ -z "$ip" ] && ip="$host"
+[ -z "$host" ] && usage && exit -1
+[ -z "$port" ] && usage && exit -1
+[ -z "$suburl" ] && usage && exit -1
+
+# construct base url
+if [ 0"$ssl" -eq 0 ]; then
+  scheme="http"
+else
+  scheme="https"
+fi
+url="${scheme}://${ip}"
+[ -n "$port" ] && url="$url:$port"
+
+# fix up the url
+[ ${suburl:0:1} != "/" ] && suburl="/$suburl"
+[ ${suburl:(-1):1} != "/" ] && suburl="$suburl/"
+
+# url is http://ip:port
+# suburl is /socket.io/
+[ "$ssl" -eq 1 ] && secureflag="--ssl" || secureflag=''
+
+token=$(curl -s -H Host:"$host" "${url}${suburl}1/?t="`date +%s`"&jsonp=0" | sed 's/^.*("\([^:]*\):.*/\1/')
+
+/usr/lib/nagios/plugins/check_http "$secureflag" -I "$ip" -H "$host" -u "${suburl}1/websocket/$token" -p "$port" -k Connection:Upgrade -k Upgrade:websocket -k Sec-WebSocket-Key:QOLfYWeJJqkZoYbhXQIoww== -k Sec-WebSocket-Version:13 -k "Origin:$url" --no-body -e "101"
+

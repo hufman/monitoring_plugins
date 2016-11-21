@@ -1,0 +1,17 @@
+#!/bin/sh
+
+if [ -z "$1" ]; then
+	echo "Please pass a hostname"
+	exit 3
+fi
+HOST="$1"
+[ -n "$2" ] && PORT="$2" || PORT="443"
+result=`ldns-dane verify "$HOST" "$PORT" 2>&1`
+
+reason="Successfully validated" && retval=0
+echo "$result" | grep -F 'No addresses' > /dev/null && reason="No TLSA records" && retval=2
+echo "$result" | grep -F 'did not dane-validate' > /dev/null && reason="Could not validate" && retval=2
+echo "$result" | grep -F 'but were insecure' > /dev/null && reason="Insecure record" && retval=1
+echo "$reason"
+echo "$result"
+exit $retval
